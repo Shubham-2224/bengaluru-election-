@@ -1,0 +1,53 @@
+# Node.js
+node_modules/
+package-lock.json
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Flask
+instance/
+.webassets-cache
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Uploads and outputs
+backend/python-service/uploads/*
+backend/python-service/outputs/*
+backend/python-service/__pycache__/*
+!backend/python-service/uploads/.gitkeep
+!backend/python-service/outputs/.gitkeep
+
+# Root Uploads and outputs
+uploads/
+outputs/
+
+# Test files
+*.test.*
+test_*.py
+
+# Logs
+*.log
+logs/

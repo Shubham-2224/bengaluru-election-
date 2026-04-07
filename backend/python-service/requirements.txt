@@ -1,0 +1,13 @@
+flask
+flask-cors
+python-dotenv
+pymupdf
+pillow
+numpy
+pytesseract
+opencv-python
+indic-transliteration
+openpyxl
+paddlepaddle
+paddleocr
+deep-translator
