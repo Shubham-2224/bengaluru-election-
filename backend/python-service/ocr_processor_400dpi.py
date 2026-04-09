@@ -172,7 +172,21 @@ class OCRProcessor400DPI:
         try:
              # Preprocess
             processed_img = self.preprocess_image(image, for_ocr=True)
+<<<<<<< HEAD
+            text = pytesseract.image_to_string(processed_img, config=config, lang='eng+hin').strip()
+            
+            # Post-OCR Watermark Filtering (User Requested: Avoid Watermarks)
+            watermark_words = [
+                'STATE', 'ELECTION', 'COMMISSION', 'INDIA', 'AVAILABLE', 
+                'COUNCIL', 'ASSEMBLY', 'ELECTORAL', 'ROLL'
+            ]
+            for word in watermark_words:
+                text = re.sub(r'\b' + re.escape(word) + r'\b', '', text, flags=re.IGNORECASE).strip()
+            
+            return text
+=======
             return pytesseract.image_to_string(processed_img, config=config, lang='eng+hin').strip()
+>>>>>>> election/main
         except Exception as e:
             print(f"      OCRError: {e}")
             return ""
@@ -241,9 +255,16 @@ class OCRProcessor400DPI:
                 # 2. Convert to Grayscale
                 image = image.convert('L')
                 
+<<<<<<< HEAD
+                # WATERMARK SUPPRESSION: Force light-gray pixels (125-255) to pure white.
+                # Highly effective against "STATE ELECTION COMMISSION" watermarks.
+                # Threshold lowered from 140 to 125 to catch slightly darker watermarks/noise.
+                image = image.point(lambda p: 255 if p > 125 else p)
+=======
                 # WATERMARK SUPPRESSION: Force light-gray pixels (140-255) to pure white.
                 # Highly effective against "STATE ELECTION COMMISSION" watermarks.
                 image = image.point(lambda p: 255 if p > 140 else p)
+>>>>>>> election/main
                 
                 # 4. Denoise
                 if not skip_heavy_ops:
@@ -1154,6 +1175,79 @@ class OCRProcessor400DPI:
             print(f"      ERROR in extract_full_cell_text: {e}")
             return {'text': '', 'method': 'error', 'error': str(e)}
 
+<<<<<<< HEAD
+    def extract_house_number_high_fidelity(self, image: Image.Image) -> str:
+        """
+        Specialized high-fidelity extraction for House Numbers.
+        Uses advanced image processing to kill watermarks and multi-pass OCR.
+        """
+        if not image: return ""
+        
+        try:
+            # 1. Image Enhancement for Watermark Killing
+            img_gray = image.convert('L')
+            
+            # VARIANT 1: Aggressive Median Filter (Kills thin watermark lines)
+            variant1 = img_gray.filter(ImageFilter.MedianFilter(size=3))
+            variant1 = ImageEnhance.Contrast(variant1).enhance(3.0)
+            # Strict Binarization with high threshold to wipe out gray artifacts
+            variant1 = variant1.point(lambda p: 255 if p > 115 else 0, '1') 
+            
+            # VARIANT 2: OpenCV Selective Denoise (if available)
+            if CV2_AVAILABLE:
+                img_cv = np.array(img_gray)
+                # Denoise specifically for text regions
+                img_cv = cv2.fastNlMeansDenoising(img_cv, None, 15, 7, 21)
+                # Adaptive Threshold with wide block to ignore gradient watermarks
+                thresh = cv2.adaptiveThreshold(img_cv, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                             cv2.THRESH_BINARY, 11, 20)
+                variant2 = Image.fromarray(thresh)
+            else:
+                variant2 = variant1
+
+            results = []
+            
+            # PASS 1: Tesseract with multiple PSM modes
+            configs = ["--psm 7 --oem 1", "--psm 8 --oem 1", "--psm 6 --oem 1"]
+            
+            for variant in [variant1, variant2]:
+                for cfg in configs:
+                    txt = pytesseract.image_to_string(variant, config=cfg, lang='eng').strip()
+                    txt = self._post_process_text(txt)
+                    if txt and any(c.isdigit() or c.isalpha() for c in txt):
+                        if len(txt) <= 15: # Filter out probable watermark garbage
+                            results.append(txt)
+            
+            # PASS 2: PaddleOCR (Extreme High Accuracy against Watermarks/Noise)
+            if self.paddle_processor:
+                try:
+                    self.paddle_processor.set_language('en')
+                    # Paddle is naturally more robust to watermarks than Tesseract
+                    p_txt = self.paddle_processor.get_full_text(image).strip()
+                    p_txt = self._post_process_text(p_txt)
+                    if p_txt:
+                        # Paddle result is usually most reliable for noisy short fields
+                        results.insert(0, p_txt) 
+                except: pass
+            
+            if results:
+                # Clean and Broadly Validate
+                clean_results = [re.sub(r'[^A-Z0-9\s\/\-]', '', r.upper()).strip() for r in results]
+                clean_results = [r for r in clean_results if r]
+                
+                if clean_results:
+                    # Preferred choice: Has digits and is reasonably short
+                    # Prioritize results that look like house numbers
+                    clean_results.sort(key=lambda x: (sum(c.isdigit() for c in x), -len(x)), reverse=True)
+                    return clean_results[0]
+            
+            return ""
+        except Exception as e:
+            print(f"      HouseOCRError: {e}")
+            return ""
+
+=======
+>>>>>>> election/main
     def _post_process_text(self, text: str) -> str:
         """
         Clean and reconstruct English text from OCR output.
@@ -1167,6 +1261,20 @@ class OCRProcessor400DPI:
 
         # 1. Global Cleanup: Remove pipes and colons
         text = text.replace('||', '').replace('|', '').replace(':', '')
+<<<<<<< HEAD
+
+        # 2. WATERMARK SUPPRESSION (User Requested)
+        watermark_words = [
+            'STATE ELECTION COMMISSION', 'STATE ELECTION', 'COMMISSION', 'INDIA', 'AVAILABLE', 
+            'COUNCIL', 'ASSEMBLY', 'ELECTORAL', 'ROLL', 'VOTE', 'ELECTION', 'SECRETARY',
+            'OFFICER', 'REGISTRATION', 'MUNICIPAL', 'CORPORATION'
+        ]
+        curr_text = text
+        for word in watermark_words:
+            curr_text = re.sub(r'\b' + re.escape(word) + r'\b', '', curr_text, flags=re.IGNORECASE).strip()
+        text = curr_text
+=======
+>>>>>>> election/main
         
         # 1.1 Targeted OCR Corrections
         try:

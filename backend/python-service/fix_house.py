@@ -14,7 +14,12 @@ for line in lines:
         new_lines.append("                        curr_val = clean_val if clean_val else raw_text\n")
         new_lines.append("                        def find_house_no_near_labels(blob):\n")
         new_lines.append("                            if not blob: return \"\"\n")
+<<<<<<< HEAD
+        new_lines.append("                            # ALPHANUMERIC SUPPORT: Use only Indian digit normalization, skip aggressive OCR digit map\n")
+        new_lines.append("                            blob_norm = TranslitHelper.normalize_digits(blob).upper()\n")
+=======
         new_lines.append("                            blob_norm = TranslitHelper.normalize_digits(blob).upper().translate(GLOBAL_DIGIT_TRANS)\n")
+>>>>>>> election/main
         new_lines.append("                            for label in HOUSE_LABELS:\n")
         new_lines.append("                                pattern = re.escape(label) + r'[\\s\\:\\-\\.\|]*([A-Z0-9/\\-]+)'\n")
         new_lines.append("                                matches = re.findall(pattern, blob_norm)\n")
@@ -30,9 +35,14 @@ for line in lines:
         new_lines.append("                        if not house_val:\n")
         new_lines.append("                            house_val = re.sub(r'^(?:HOUSE|H\\.?\\s*NO|HS|NO|NUM|H)\\b[:\\- .]*', '', curr_val, flags=re.IGNORECASE).strip()\n")
         new_lines.append("                        if house_val:\n")
+<<<<<<< HEAD
+        new_lines.append("                            house_val = house_val.upper()\n")
+        new_lines.append("                            house_val = re.sub(r'[^A-Z0-9\\s\\/\\-]', ' ', house_val)\n")
+=======
         new_lines.append("                            house_val = house_val.upper().translate(GLOBAL_DIGIT_TRANS)\n")
         new_lines.append("                            house_val = re.sub(r'[^A-Z0-9\\s\\/\\-]', ' ', house_val)\n")
         new_lines.append("                            house_val = ' '.join(house_val.split()).strip()\n")
+>>>>>>> election/main
         new_lines.append("                        additional_fields['houseNo'] = house_val\n")
         skip = True
         continue

@@ -683,6 +683,43 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                     field_res = {}
 
                     try:
+<<<<<<< HEAD
+                        # USER REQUEST: For Age and House No, strictly use Image Extraction (OCR) as Text Layer is often wrong
+                        # ALSO: Bypass Text Layer if it contains Watermarks (User Request)
+                        if not any(k in key_lower for k in ['age', 'house']):
+                            # HIGH-SPEED DIGITAL PATH: Logic for text layer extraction
+                            layer_rect = fitz.Rect(field_rect.x0 - 5, field_rect.y0 - 2, field_rect.x1 + 5, field_rect.y1 + 2)
+                            if local_cell_words:
+                                layer_text = _extract_text_fast(layer_rect, local_cell_words)
+                            else:
+                                layer_text = page.get_text("text", clip=layer_rect).strip()
+                            
+                            if layer_text and len(layer_text) >= 2:
+                                # 🛡️ DETECT WATERMARKS (USER REQUEST: AVOID WATERMARKS)
+                                # If the digital layer contains watermark text, it's polluted -> DROP TO OCR
+                                watermarks = [
+                                    'STATE ELECTION', 'COMMISSION', 'INDIA', 'AVAILABLE', 'COUNCIL', 
+                                    'ASSEMBLY', 'ELECTORAL', 'ROLL', 'VOTE', 'ELECTION', 'SECRETARY',
+                                    'OFFICER', 'REGISTRATION', 'MUNICIPAL', 'CORPORATION','KARANATAKA'
+                                ]
+                                
+                                has_watermark = any(wm in layer_text.upper() for wm in watermarks)
+                                
+                                if has_watermark:
+                                    print(f"      🛡️  Watermark detected in text layer ('{layer_text[:20]}...'). Bypassing for OCR.")
+                                    use_layer_text = False
+                                else:
+                                    # Clean remaining artifacts just in case
+                                    clean_layer = layer_text
+                                    for wm in watermarks:
+                                        clean_layer = re.sub(re.escape(wm), '', clean_layer, flags=re.IGNORECASE).strip()
+                                    
+                                    if clean_layer and len(clean_layer) >= 1:
+                                        clean_val = clean_layer
+                                        raw_text = clean_layer
+                                        field_res = {'method': 'text_layer_optimized', 'text': clean_layer, 'raw_text': clean_layer}
+                                        use_layer_text = True
+=======
                         # HIGH-SPEED DIGITAL PATH: Logic for text layer extraction
                         layer_rect = fitz.Rect(field_rect.x0 - 5, field_rect.y0 - 2, field_rect.x1 + 5, field_rect.y1 + 2)
                         if local_cell_words:
@@ -703,6 +740,7 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                                 raw_text = clean_layer
                                 field_res = {'method': 'text_layer_optimized', 'text': clean_layer, 'raw_text': clean_layer}
                                 use_layer_text = True
+>>>>>>> election/main
                     except: pass
 
                     if not use_layer_text:
@@ -721,9 +759,28 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                             field_pix = page.get_pixmap(clip=field_rect, dpi=400, alpha=False)
                             crop_img = Image.frombytes("RGB", [field_pix.width, field_pix.height], field_pix.samples)
                         
+<<<<<<< HEAD
+                        # USER REQUEST: HIGH ACCURACY IMAGE EXTRACTION
+                        # Use specialized PSM and Whitelists for critical short fields
+                        if 'age' in key_lower or 'gender' in key_lower:
+                             # Use PSM 7 (single line) or 8 (single word) for Age/Gender
+                             raw_text = local_ocr_processor.extract_text_with_config(crop_img, "--psm 7 -c tessedit_char_whitelist=0123456789MF --oem 1")
+                             clean_val = raw_text
+                             field_res = {'method': 'ocr_high_accuracy_short_field', 'text': clean_val, 'raw_text': raw_text}
+                        elif 'house' in key_lower:
+                             # Use specialized high-fidelity OCR for House Numbers
+                             clean_val = local_ocr_processor.extract_house_number_high_fidelity(crop_img)
+                             raw_text = clean_val
+                             field_res = {'method': 'ocr_house_high_fidelity', 'text': clean_val, 'raw_text': raw_text}
+                        else:
+                             field_res = local_ocr_processor.extract_full_cell_text(image=crop_img, force_marathi=False)
+                             raw_text = field_res.get('raw_text', '').strip()
+                             clean_val = field_res.get('text', '').strip()
+=======
                         field_res = local_ocr_processor.extract_full_cell_text(image=crop_img, force_marathi=False)
                         raw_text = field_res.get('raw_text', '').strip()
                         clean_val = field_res.get('text', '').strip()
+>>>>>>> election/main
                     
                     if not clean_val:
                         clean_val = raw_text or ""
@@ -790,6 +847,11 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                                 val_raw = val_raw.replace(k, v)
                             potential_ages = re.findall(r'\d+', val_raw)
                         
+<<<<<<< HEAD
+                        # Phase 1: Contextual Search (High Precision for 'Full Selection')
+                        age_val = ""
+                        
+=======
                         # Phase 3: Aggressive Fallback to Full Cell Text (Handles Misalignment)
                         # This is the "Safety Net" for 99% accuracy
                         age_val = ""
@@ -797,6 +859,7 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                         # Labels for Age in multiple languages with fuzzy patterns
                         age_labels = ['AGE', 'VAYASSU', 'ವಯಸ್ಸು', 'VAY', 'VAYU', 'வயದು', 'AAYU', 'UMR', 'வயது', 'ಉಯರಂ', 'वय', 'आयु', 'उम्र', 'A:', 'A-', 'AG:']
                         
+>>>>>>> election/main
                         # Helper to search for age in a blob
                         def find_age_contextual(blob):
                             if not blob: return ""
@@ -811,10 +874,34 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                                         if m_clean and 18 <= int(m_clean) <= 110: return m_clean
                             return ""
 
+<<<<<<< HEAD
+                        # USER REQUEST: HIGH ACCURACY - Try pure value from crop FIRST (Labels are often missing in high-dpi crops)
+                        val_raw = clean_val.strip().upper()
+                        # Apply heavy digit correction for Age field specifically
+                        for k, v in digit_map.items(): val_raw = val_raw.replace(k, v)
+                        
+                        potential = re.findall(r'\d+', val_raw)
+                        if potential:
+                             # Use the LAST number found (Age is usually the last part of the field)
+                             for p in reversed(potential):
+                                 if 18 <= int(p) <= 110:
+                                     age_val = p
+                                     break
+                        
+                        if not age_val:
+                            age_val = find_age_contextual(clean_val) or find_age_contextual(raw_text)
+                        
+                        if not age_val and local_cell_words:
+                            age_val = find_age_contextual(_extract_text_fast(cell_full_rect, local_cell_words))
+                        
+                        if not age_val:
+                            age_val = find_age_contextual(full_text)
+=======
                         age_val = find_age_contextual(clean_val) or find_age_contextual(raw_text)
                         if not age_val and local_cell_words:
                             age_val = find_age_contextual(_extract_text_fast(cell_full_rect, local_cell_words))
                         if not age_val: age_val = find_age_contextual(full_text)
+>>>>>>> election/main
                             
                         # Fallback & Last Resort
                         if not age_val:
@@ -886,16 +973,36 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                         curr_val = clean_val if clean_val else raw_text
                         def find_house_no_near_labels(blob):
                             if not blob: return ""
+<<<<<<< HEAD
+                            # ALPHANUMERIC SUPPORT: Use only Indian digit normalization, skip aggressive OCR digit map
+                            blob_norm = TranslitHelper.normalize_digits(blob).upper()
+=======
                             blob_norm = TranslitHelper.normalize_digits(blob).upper().translate(GLOBAL_DIGIT_TRANS)
+>>>>>>> election/main
                             for label in HOUSE_LABELS:
                                 pattern = re.escape(label) + r'[\s\:\-\.\|]*([A-Z0-9/\-]+)'
                                 matches = re.findall(pattern, blob_norm)
                                 if matches:
                                     for m in matches:
+<<<<<<< HEAD
+                                        # Keep the match if it contains at least one digit
+                                        if any(c.isdigit() for c in m): return m
+                            return ""
+
+                        # USER REQUEST: HIGH ACCURACY - Try pure value from crop FIRST (Restoring Alphanumeric integrity)
+                        house_val = ""
+                        possible_h = re.sub(r'^(?:HOUSE|H\.?\s*NO|HS|NO|NUM|H)\b[:\- .]*', '', clean_val.upper(), flags=re.IGNORECASE).strip()
+                        if possible_h:
+                             # DO NOT apply character correction as per user request (e.g. O should remain O, not 0)
+                             house_val = possible_h
+
+                        if not house_val: house_val = find_house_no_near_labels(curr_val)
+=======
                                         if any(c.isdigit() for c in m): return m
                             return ""
 
                         house_val = find_house_no_near_labels(curr_val)
+>>>>>>> election/main
                         if not house_val:
                             if local_cell_words:
                                 house_val = find_house_no_near_labels(_extract_text_fast(cell_full_rect, local_cell_words))
@@ -903,8 +1010,12 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                         if not house_val:
                             house_val = re.sub(r'^(?:HOUSE|H\.?\s*NO|HS|NO|NUM|H)\b[:\- .]*', '', curr_val, flags=re.IGNORECASE).strip()
                         if house_val:
+<<<<<<< HEAD
+                            house_val = house_val.upper().strip()
+=======
                             house_val = house_val.upper().translate(GLOBAL_DIGIT_TRANS)
                             house_val = re.sub(r'[^A-Z0-9\s\/\-]', ' ', house_val)
+>>>>>>> election/main
                             house_val = ' '.join(house_val.split()).strip()
                         additional_fields['houseNo'] = house_val
                     elif any(k in key_lower for k in ['serial', 'assembly', 'ac', 'pc', 'part']):
