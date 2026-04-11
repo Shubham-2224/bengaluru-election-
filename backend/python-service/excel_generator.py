@@ -26,38 +26,25 @@ def generate_excel(data: List[Dict], output_path: str) -> bool:
         worksheet = workbook.active
         worksheet.title = 'Voter Data'
         
-        # Determine all image columns
-        include_main_image = any(record.get('image_base64') for record in data)
-        additional_image_keys = set()
-        for record in data:
-            for key in record.keys():
-                if key.endswith('_image'):
-                    additional_image_keys.add(key)
-        
-        sorted_image_keys = sorted(list(additional_image_keys))
+        # Sorting logic remains for standard columns
+        pass
         
         # Define base headers
         headers = [
             'Serial No', 
             'EPIC No', 
-            'Name', 'Name (English)', 'Name (Kannada)',
+            'Name', 'Name (Kannada)',
             'Relation Type', 
-            'Relative Name', 'Relative Name (English)', 'Relative Name (Kannada)',
+            'Relative Name', 'Relative Name (Kannada)',
             'House No', 
             'Gender', 
-            'Age', 'Assembly No',
-            'Booth Center', 'Booth Center (English)', 'Booth Center (Kannada)',
-            'Booth Address', 'Booth Address (English)', 'Booth Address (Kannada)',
-            'Prabhag', 'Booth No'
+            'Age', 
+            'Booth Center', 'Booth Center (Kannada)',
+            'Booth Address', 'Booth Address (Kannada)',
+            'Part No', 'Booth No', 'Booth Name', 'Booth Name (Kannada)'
         ]
         
-        if include_main_image:
-            headers.append('Base64 Image String')
-        
-        for key in sorted_image_keys:
-            # Format header name
-            header_name = key.replace('_', ' ').title()
-            headers.append(header_name)
+        pass
         
         # Apply styling to headers
         header_font = Font(bold=True, size=12, color='FFFFFFFF')
@@ -75,11 +62,11 @@ def generate_excel(data: List[Dict], output_path: str) -> bool:
             
             # Set default widths for standard columns, then auto for images
             col_letter = get_column_letter(col_num)
-            if col_num <= 21: # Increased from 19 to 21 because of 2 new columns
-                standard_widths = [10, 15, 25, 25, 25, 15, 25, 25, 25, 10, 8, 8, 12, 30, 30, 30, 30, 30, 30, 15, 15]
+            if col_num <= 18: # 23 - 5 = 18 standard columns
+                standard_widths = [10, 15, 25, 25, 15, 25, 25, 10, 8, 8, 30, 30, 30, 30, 15, 15, 30, 30]
                 worksheet.column_dimensions[col_letter].width = standard_widths[col_num-1]
-            else:
-                worksheet.column_dimensions[col_letter].width = 25 # Image B64 columns
+            # Standard width for all remaining columns
+            worksheet.column_dimensions[col_letter].width = 25
         
         # Define border style
         thin_border = Border(
@@ -106,34 +93,27 @@ def generate_excel(data: List[Dict], output_path: str) -> bool:
             
             # Prepare row values in order
             row_values = [
-                record.get('serialNo') or record.get('Serial No') or record.get('serial_no') or '',
+                index + 1, # Serial No: Auto-incrementing from 1
                 record.get('voterID', ''),
                 record.get('name', ''),
-                record.get('nameEnglish', ''),
                 record.get('nameKannada', ''),
                 record.get('relationType', ''),
                 record.get('relativeName', ''),
-                record.get('relativeNameEnglish', ''),
                 record.get('relativeNameKannada', ''),
                 record.get('houseNo', ''),
                 record.get('gender', ''),
                 record.get('age', ''),
-                record.get('assemblyNo', ''),
                 record.get('boothCenter', ''),
-                record.get('boothCenterEnglish', ''),
                 record.get('boothCenterKannada', ''),
                 record.get('boothAddress', ''),
-                record.get('boothAddressEnglish', ''),
                 record.get('boothAddressKannada', ''),
                 record.get('prabhag', ''),
-                record.get('boothNo', '')
+                record.get('boothNo', ''),
+                record.get('boothName', ''),
+                record.get('boothNameKannada', '')
             ]
 
-            if include_main_image:
-                row_values.append(record.get('image_base64', ''))
-            
-            for key in sorted_image_keys:
-                row_values.append(record.get(key, ''))
+            pass
             
             # Write row
             worksheet.append(row_values)

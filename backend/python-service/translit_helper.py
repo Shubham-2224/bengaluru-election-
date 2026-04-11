@@ -178,7 +178,7 @@ class TranslitHelper:
         for jp in junk_patterns:
              text = re.sub(jp, '', text, flags=re.IGNORECASE).strip()
         
-        # 2.2 Watermark removal
+        # 2.2 Watermark removal (Comprehensive list for digital and OCR artifacts)
         watermark_patterns = [
             r'STATE\s+ELECTION\s+COMMISSION',
             r'ELECTION\s+COMMISSION\s+OF\s+INDIA',
@@ -186,7 +186,13 @@ class TranslitHelper:
             r'STATE\s+ELECTION',
             r'COMMISSION',
             r'ELECTION',
-            r'INDIA'
+            r'INDIA',
+            r'BENGALURU',
+            r'KARNATAKA',
+            r'AVAILABLE',
+            r'ELECTORAL\s+ROLL',
+            r'ASSEMBLY',
+            r'CONSTITUENCY'
         ]
         for wp in watermark_patterns:
             text = re.sub(wp, '', text, flags=re.IGNORECASE).strip()
@@ -245,7 +251,13 @@ class TranslitHelper:
             r'STATE\s+ELECTION',
             r'COMMISSION',
             r'ELECTION',
-            r'INDIA'
+            r'INDIA',
+            r'BENGALURU',
+            r'KARNATAKA',
+            r'AVAILABLE',
+            r'ELECTORAL\s+ROLL',
+            r'ASSEMBLY',
+            r'CONSTITUENCY'
         ]
         active_text = text
         for p in watermark_patterns:

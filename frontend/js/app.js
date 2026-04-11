@@ -32,6 +32,8 @@ const elements = {
     skipFooterHeight: document.getElementById('skipFooterHeight'),
     prabhag: document.getElementById('prabhag'),
     boothNo: document.getElementById('boothNo'),
+    boothName: document.getElementById('boothName'),
+    boothNameKannada: document.getElementById('boothNameKannada'),
     btnShowSkipZones: document.getElementById('btnShowSkipZones'),
 
     // Grid
@@ -349,6 +351,8 @@ async function handleExtract() {
             skipFooterHeight: (parseInt(elements.skipFooterHeight.value) || 0) / pdfScale,
             prabhag: elements.prabhag.value.trim(),
             boothNo: elements.boothNo.value.trim(),
+            boothName: elements.boothName.value.trim(),
+            boothNameKannada: elements.boothNameKannada.value.trim(),
             grid: gridConfig,
             cellTemplate: cellTemplate,
             pageTemplate: gridOverlay.getPageTemplate(), // Include page template
@@ -582,7 +586,9 @@ function handlePreview() {
                 <td>${record.column || '-'}</td>
                 <td>${record.prabhag || '-'}</td>
                 <td>${record.boothNo || '-'}</td>
-                <td>${record.serialNo || '-'}</td>
+                <td>${record.boothName || '-'}</td>
+                <td>${record.boothNameKannada || '-'}</td>
+                <td>${index + 1}</td>
                 <td class="voter-id-cell">${record.voterID || '<span class="no-data">No ID</span>'}</td>
                 <td>${record.name || '-'}</td>
                 <td>${record.nameKannada || '-'}</td>
@@ -592,19 +598,10 @@ function handlePreview() {
                 <td>${record.houseNo || '-'}</td>
                 <td>${record.gender || '-'}</td>
                 <td>${record.age || '-'}</td>
-                <td>${record.assemblyNo || '-'}</td>
                 <td>${record.boothCenter || '-'}</td>
                 <td>${record.boothCenterKannada || '-'}</td>
                 <td>${record.boothAddress || '-'}</td>
                 <td>${record.boothAddressKannada || '-'}</td>
-                <td class="photo-cell">
-                    ${record.image_base64
-                ? `<img src="data:image/jpeg;base64,${record.image_base64}" 
-                             alt="Voter Photo" 
-                             class="preview-photo" 
-                             title="Click to zoom">`
-                : '<span class="no-data">No Photo</span>'}
-                </td>
                 <td>
                     <span class="confidence-badge ${confidenceClass}">
                         ${confidencePercent}%

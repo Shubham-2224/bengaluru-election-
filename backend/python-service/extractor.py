@@ -107,6 +107,14 @@ GLOBAL_OCR_DIGIT_MAP = {
 }
 GLOBAL_DIGIT_TRANS = str.maketrans(''.join(GLOBAL_OCR_DIGIT_MAP.keys()), ''.join(GLOBAL_OCR_DIGIT_MAP.values()))
 
+# WATERMARK PROTECTION: Expanded list of watermark keywords to exclude from text layer
+WATERMARK_WORDS = {
+    'STATE', 'ELECTION', 'COMMISSION', 'INDIA', 'AVAILABLE', 'COUNCIL', 
+    'ASSEMBLY', 'ELECTORAL', 'ROLL', 'OF', 'BENGALURU', 'KARNATAKA', 
+    'BANGALORE', 'POLLING', 'STATION', 'PART', 'NO', 'SECTION', 'CENTRE',
+    'DETAILS', 'NAME', 'MOTHER', 'FATHER', 'HUSBAND', 'OTHER'
+}
+
 AGE_LABELS = ['AGE', 'VAYASSU', 'ವಯಸ್ಸು', 'VAY', 'VAYU', 'வயது', 'AAYU', 'UMR', 'வயது', 'ಉಯರಂ', 'वय', 'आयु', 'उम्र', 'A:', 'A-', 'AG:']
 HOUSE_LABELS = ['HOUSE', 'H.NO', 'H. NO', 'H NO', 'HS NO', 'H. NO.', 'ಮನೇ ಸಂಖ್ಯೇ', 'ಮನೆ ಸಂಖ್ಯೆ', 'ঘর নং', 'सदन संख्या']
 
@@ -126,11 +134,25 @@ CPU_WORKERS = get_cpu_count()
 def _extract_text_fast(rect, page_words):
     if not page_words: return ""
     res = []
+    
+    # 🛡️ WATERMARK SUPPRESSION: Filter out watermark words while joining text layer words
     for w in page_words:
         w_cx = (w[0] + w[2]) / 2
         w_cy = (w[1] + w[3]) / 2
+        
         if rect.x0 <= w_cx <= rect.x1 and rect.y0 <= w_cy <= rect.y1:
+            w_text = w[4].strip().upper()
+            
+            # Skip common watermark tokens
+            if w_text in WATERMARK_WORDS:
+                continue
+                
+            # Skip long strings of "STATE ELECTION" variants
+            if len(w_text) > 5 and any(wm in w_text for wm in ['ELECTION', 'COMMISSION', 'ELECTORAL', 'AVAILABLE']):
+                continue
+                
             res.append(w[4])
+            
     return " ".join(res).strip()
 def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits, processors, master_page_img=None, master_page_scale=None, page_words=None):
     """
@@ -351,7 +373,7 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
             try:
                 full_cell_text = page.get_text("text", clip=cell_full_rect).upper()
                 # Clean watermarks from full cell text too
-                for wm in ['STATE ELECTION', 'COMMISSION', 'INDIA']:
+                for wm in ['STATE ELECTION', 'COMMISSION', 'INDIA', 'AVAILABLE', 'BENGALURU', 'KARNATAKA']:
                     full_cell_text = full_cell_text.replace(wm, '')
                 
                 epic_patterns = [r'[A-Z]{3}[0-9]{7}', r'[A-Z]{2,4}[0-9]{6,8}']
@@ -364,57 +386,10 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                         break
             except: pass
         
-        # === EXTRACT PHOTO (Only if enabled) ===
+        # === PHOTO EXTRACTION REMOVED PER USER REQUEST ===
         photo_base64 = ""
         photo_quality = 0.0
         photo_method = "none"
-
-        if extract_photos:
-            try:
-                scaled_photo_x = photo_box.get('x', 0) * scale_x
-                scaled_photo_y = photo_box.get('y', 0) * scale_y
-                scaled_photo_width = photo_box.get('width', 150) * scale_x
-                scaled_photo_height = photo_box.get('height', 180) * scale_y
-                
-                photo_rect = fitz.Rect(
-                    cell_x + scaled_photo_x,
-                    cell_y + scaled_photo_y,
-                    cell_x + scaled_photo_x + scaled_photo_width,
-                    cell_y + scaled_photo_y + scaled_photo_height
-                )
-                
-                # Use Master Image for Photo
-                if master_page_img and master_page_scale:
-                    s = master_page_scale
-                    header_offset = extraction_limits[0]
-                    left = int(photo_rect.x0 * s)
-                    top = int((photo_rect.y0 - header_offset) * s)
-                    right = int(photo_rect.x1 * s)
-                    bottom = int((photo_rect.y1 - header_offset) * s)
-                    photo_crop = master_page_img.crop((left, top, right, bottom))
-                else:
-                    photo_pix = page.get_pixmap(clip=photo_rect, dpi=400, alpha=False)
-                    photo_crop = Image.frombytes("RGB", [photo_pix.width, photo_pix.height], photo_pix.samples)
-
-                if local_ocr_processor:
-                    result = local_ocr_processor.extract_photo(image=photo_crop)
-                    photo_base64 = result.get('photo_base64', '')
-                    photo_quality = result.get('confidence', 0.0)
-                    
-                    if photo_base64 and local_photo_processor:
-                        try:
-                            img_bytes = base64.b64decode(photo_base64)
-                            img = Image.open(io.BytesIO(img_bytes))
-                            photo_result = local_photo_processor.process_photo(img, enhance=True)
-                            photo_base64 = photo_result['base64']
-                        except: pass
-                
-                # Smart Detector Fallback for Photo if OCR failed
-                if not photo_base64 and local_smart_detector:
-                     smart_res = local_smart_detector.find_photo_in_cell(photo_crop)
-                     if smart_res['found']:
-                          photo_base64 = smart_res['photo_base64']
-            except: pass
         
         # === FINAL VERIFICATION: HIGH-POWER TEXT LAYER MATCHING (99% ACCURACY) ===
         # User requested maximum accuracy using CPU power to match PDF text layer with extracted data.
@@ -443,8 +418,8 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
             expected_x = cell_x + (voter_id_box.get('x', 0) * scale_x)
             expected_y = cell_y + (voter_id_box.get('y', 0) * scale_y)
             
-            # Standard Pattern for Voter ID
-            voter_id_pattern = EPIC_REGEX
+            # Standard Pattern for Voter ID - RELAXED for detection phase
+            voter_id_pattern = LOOSE_EPIC_REGEX
             
             for w in cell_words:
                 w_text = w[4].strip().upper()
@@ -683,43 +658,6 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                     field_res = {}
 
                     try:
-<<<<<<< HEAD
-                        # USER REQUEST: For Age and House No, strictly use Image Extraction (OCR) as Text Layer is often wrong
-                        # ALSO: Bypass Text Layer if it contains Watermarks (User Request)
-                        if not any(k in key_lower for k in ['age', 'house']):
-                            # HIGH-SPEED DIGITAL PATH: Logic for text layer extraction
-                            layer_rect = fitz.Rect(field_rect.x0 - 5, field_rect.y0 - 2, field_rect.x1 + 5, field_rect.y1 + 2)
-                            if local_cell_words:
-                                layer_text = _extract_text_fast(layer_rect, local_cell_words)
-                            else:
-                                layer_text = page.get_text("text", clip=layer_rect).strip()
-                            
-                            if layer_text and len(layer_text) >= 2:
-                                # 🛡️ DETECT WATERMARKS (USER REQUEST: AVOID WATERMARKS)
-                                # If the digital layer contains watermark text, it's polluted -> DROP TO OCR
-                                watermarks = [
-                                    'STATE ELECTION', 'COMMISSION', 'INDIA', 'AVAILABLE', 'COUNCIL', 
-                                    'ASSEMBLY', 'ELECTORAL', 'ROLL', 'VOTE', 'ELECTION', 'SECRETARY',
-                                    'OFFICER', 'REGISTRATION', 'MUNICIPAL', 'CORPORATION','KARANATAKA'
-                                ]
-                                
-                                has_watermark = any(wm in layer_text.upper() for wm in watermarks)
-                                
-                                if has_watermark:
-                                    print(f"      🛡️  Watermark detected in text layer ('{layer_text[:20]}...'). Bypassing for OCR.")
-                                    use_layer_text = False
-                                else:
-                                    # Clean remaining artifacts just in case
-                                    clean_layer = layer_text
-                                    for wm in watermarks:
-                                        clean_layer = re.sub(re.escape(wm), '', clean_layer, flags=re.IGNORECASE).strip()
-                                    
-                                    if clean_layer and len(clean_layer) >= 1:
-                                        clean_val = clean_layer
-                                        raw_text = clean_layer
-                                        field_res = {'method': 'text_layer_optimized', 'text': clean_layer, 'raw_text': clean_layer}
-                                        use_layer_text = True
-=======
                         # HIGH-SPEED DIGITAL PATH: Logic for text layer extraction
                         layer_rect = fitz.Rect(field_rect.x0 - 5, field_rect.y0 - 2, field_rect.x1 + 5, field_rect.y1 + 2)
                         if local_cell_words:
@@ -730,17 +668,16 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                         if layer_text and len(layer_text) >= 2:
                             # 🛡️ CLEAN WATERMARKS (USER REQUEST: EXTREME CLEANLINESS)
                             # Removing common watermark artifacts directly from text layer
-                            watermarks = ['STATE ELECTION', 'COMMISSION', 'INDIA', 'AVAILABLE', 'COUNCIL', 'ASSEMBLY', 'ELECTORAL', 'ROLL']
+                            watermarks = ['STATE ELECTION', 'COMMISSION', 'INDIA', 'AVAILABLE', 'COUNCIL', 'ASSEMBLY', 'ELECTORAL', 'ROLL', 'BENGALURU', 'KARNATAKA']
                             clean_layer = layer_text
                             for wm in watermarks:
-                                clean_layer = re.sub(wm, '', clean_layer, flags=re.IGNORECASE).strip()
+                                clean_layer = re.sub(re.escape(wm), '', clean_layer, flags=re.IGNORECASE).strip()
                             
                             if clean_layer and len(clean_layer) >= 1:
                                 clean_val = clean_layer
                                 raw_text = clean_layer
                                 field_res = {'method': 'text_layer_optimized', 'text': clean_layer, 'raw_text': clean_layer}
                                 use_layer_text = True
->>>>>>> election/main
                     except: pass
 
                     if not use_layer_text:
@@ -759,28 +696,9 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                             field_pix = page.get_pixmap(clip=field_rect, dpi=400, alpha=False)
                             crop_img = Image.frombytes("RGB", [field_pix.width, field_pix.height], field_pix.samples)
                         
-<<<<<<< HEAD
-                        # USER REQUEST: HIGH ACCURACY IMAGE EXTRACTION
-                        # Use specialized PSM and Whitelists for critical short fields
-                        if 'age' in key_lower or 'gender' in key_lower:
-                             # Use PSM 7 (single line) or 8 (single word) for Age/Gender
-                             raw_text = local_ocr_processor.extract_text_with_config(crop_img, "--psm 7 -c tessedit_char_whitelist=0123456789MF --oem 1")
-                             clean_val = raw_text
-                             field_res = {'method': 'ocr_high_accuracy_short_field', 'text': clean_val, 'raw_text': raw_text}
-                        elif 'house' in key_lower:
-                             # Use specialized high-fidelity OCR for House Numbers
-                             clean_val = local_ocr_processor.extract_house_number_high_fidelity(crop_img)
-                             raw_text = clean_val
-                             field_res = {'method': 'ocr_house_high_fidelity', 'text': clean_val, 'raw_text': raw_text}
-                        else:
-                             field_res = local_ocr_processor.extract_full_cell_text(image=crop_img, force_marathi=False)
-                             raw_text = field_res.get('raw_text', '').strip()
-                             clean_val = field_res.get('text', '').strip()
-=======
                         field_res = local_ocr_processor.extract_full_cell_text(image=crop_img, force_marathi=False)
                         raw_text = field_res.get('raw_text', '').strip()
                         clean_val = field_res.get('text', '').strip()
->>>>>>> election/main
                     
                     if not clean_val:
                         clean_val = raw_text or ""
@@ -847,11 +765,6 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                                 val_raw = val_raw.replace(k, v)
                             potential_ages = re.findall(r'\d+', val_raw)
                         
-<<<<<<< HEAD
-                        # Phase 1: Contextual Search (High Precision for 'Full Selection')
-                        age_val = ""
-                        
-=======
                         # Phase 3: Aggressive Fallback to Full Cell Text (Handles Misalignment)
                         # This is the "Safety Net" for 99% accuracy
                         age_val = ""
@@ -859,7 +772,6 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                         # Labels for Age in multiple languages with fuzzy patterns
                         age_labels = ['AGE', 'VAYASSU', 'ವಯಸ್ಸು', 'VAY', 'VAYU', 'வயದು', 'AAYU', 'UMR', 'வயது', 'ಉಯರಂ', 'वय', 'आयु', 'उम्र', 'A:', 'A-', 'AG:']
                         
->>>>>>> election/main
                         # Helper to search for age in a blob
                         def find_age_contextual(blob):
                             if not blob: return ""
@@ -871,37 +783,15 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                                 if matches:
                                     for m in reversed(matches):
                                         m_clean = m.replace(' ', '')
-                                        if m_clean and 18 <= int(m_clean) <= 110: return m_clean
+                                        try:
+                                            if m_clean and 18 <= int(m_clean) <= 110: return m_clean
+                                        except: continue
                             return ""
 
-<<<<<<< HEAD
-                        # USER REQUEST: HIGH ACCURACY - Try pure value from crop FIRST (Labels are often missing in high-dpi crops)
-                        val_raw = clean_val.strip().upper()
-                        # Apply heavy digit correction for Age field specifically
-                        for k, v in digit_map.items(): val_raw = val_raw.replace(k, v)
-                        
-                        potential = re.findall(r'\d+', val_raw)
-                        if potential:
-                             # Use the LAST number found (Age is usually the last part of the field)
-                             for p in reversed(potential):
-                                 if 18 <= int(p) <= 110:
-                                     age_val = p
-                                     break
-                        
-                        if not age_val:
-                            age_val = find_age_contextual(clean_val) or find_age_contextual(raw_text)
-                        
-                        if not age_val and local_cell_words:
-                            age_val = find_age_contextual(_extract_text_fast(cell_full_rect, local_cell_words))
-                        
-                        if not age_val:
-                            age_val = find_age_contextual(full_text)
-=======
                         age_val = find_age_contextual(clean_val) or find_age_contextual(raw_text)
                         if not age_val and local_cell_words:
                             age_val = find_age_contextual(_extract_text_fast(cell_full_rect, local_cell_words))
                         if not age_val: age_val = find_age_contextual(full_text)
->>>>>>> election/main
                             
                         # Fallback & Last Resort
                         if not age_val:
@@ -973,36 +863,18 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                         curr_val = clean_val if clean_val else raw_text
                         def find_house_no_near_labels(blob):
                             if not blob: return ""
-<<<<<<< HEAD
                             # ALPHANUMERIC SUPPORT: Use only Indian digit normalization, skip aggressive OCR digit map
                             blob_norm = TranslitHelper.normalize_digits(blob).upper()
-=======
-                            blob_norm = TranslitHelper.normalize_digits(blob).upper().translate(GLOBAL_DIGIT_TRANS)
->>>>>>> election/main
                             for label in HOUSE_LABELS:
                                 pattern = re.escape(label) + r'[\s\:\-\.\|]*([A-Z0-9/\-]+)'
                                 matches = re.findall(pattern, blob_norm)
                                 if matches:
                                     for m in matches:
-<<<<<<< HEAD
                                         # Keep the match if it contains at least one digit
                                         if any(c.isdigit() for c in m): return m
                             return ""
 
-                        # USER REQUEST: HIGH ACCURACY - Try pure value from crop FIRST (Restoring Alphanumeric integrity)
-                        house_val = ""
-                        possible_h = re.sub(r'^(?:HOUSE|H\.?\s*NO|HS|NO|NUM|H)\b[:\- .]*', '', clean_val.upper(), flags=re.IGNORECASE).strip()
-                        if possible_h:
-                             # DO NOT apply character correction as per user request (e.g. O should remain O, not 0)
-                             house_val = possible_h
-
-                        if not house_val: house_val = find_house_no_near_labels(curr_val)
-=======
-                                        if any(c.isdigit() for c in m): return m
-                            return ""
-
                         house_val = find_house_no_near_labels(curr_val)
->>>>>>> election/main
                         if not house_val:
                             if local_cell_words:
                                 house_val = find_house_no_near_labels(_extract_text_fast(cell_full_rect, local_cell_words))
@@ -1010,12 +882,8 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                         if not house_val:
                             house_val = re.sub(r'^(?:HOUSE|H\.?\s*NO|HS|NO|NUM|H)\b[:\- .]*', '', curr_val, flags=re.IGNORECASE).strip()
                         if house_val:
-<<<<<<< HEAD
-                            house_val = house_val.upper().strip()
-=======
-                            house_val = house_val.upper().translate(GLOBAL_DIGIT_TRANS)
+                            house_val = house_val.upper() # Removed translate(GLOBAL_DIGIT_TRANS)
                             house_val = re.sub(r'[^A-Z0-9\s\/\-]', ' ', house_val)
->>>>>>> election/main
                             house_val = ' '.join(house_val.split()).strip()
                         additional_fields['houseNo'] = house_val
                     elif any(k in key_lower for k in ['serial', 'assembly', 'ac', 'pc', 'part']):
@@ -1076,24 +944,19 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                        additional_fields['genderKannada'] = TranslitHelper.translate_to_kannada(g)
                        break
 
-        # === USER REQUEST: Mandatory Fields Filter ===
-        # ONLY take if Voter ID, Name, and Relative Name are present
+        # === USER REQUEST: Mandatory Fields Filter (DISABLED TO PREVENT DATA LOSS) ===
+        # We now include all records even if some fields are missing, but we still log the missing info.
         name_val = additional_fields.get('nameEnglish', '').strip()
         rel_name_val = additional_fields.get('relativeNameEnglish', '').strip()
         
-        # Voter ID is considered valid if it's at least 5 chars (loose) or matches pattern
-        # Here we use 5 chars as the minimum threshold for presence
-        has_id = bool(voter_id_text and len(voter_id_text.strip()) >= 5)
+        has_id = bool(voter_id_text and len(voter_id_text.strip()) >= 4)
         has_name = bool(name_val and len(name_val) >= 2)
         has_relative = bool(rel_name_val and len(rel_name_val) >= 2)
         
-        if not (has_id and has_name and has_relative):
+        # We only skip if the card is completely empty or junk (e.g., no ID AND no name)
+        if not has_id and not has_name:
             should_skip = True
-            reasons = []
-            if not has_id: reasons.append("VoterID")
-            if not has_name: reasons.append("Name")
-            if not has_relative: reasons.append("RelativeName")
-            skip_reason = f"Missing: {', '.join(reasons)}"
+            skip_reason = "Empty or junk record"
             print(f"      ⏭️  SKIPPING Page {page_num+1}, Row {row+1}, Col {col+1}: {skip_reason}")
 
         # Return result
@@ -1103,7 +966,6 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
             'row': row + 1,
             'voterID': voter_id_text if voter_id_text else "",
             'full_text': full_text,
-            'image_base64': photo_base64,
             'name': additional_fields.get('name', ''),
             'nameEnglish': additional_fields.get('nameEnglish', ''),
             'nameKannada': additional_fields.get('nameKannada', ''),
@@ -1760,6 +1622,8 @@ def process_page(pdf_path, page_num, config, template, box_detector_config=None)
         # New constant fields from config
         page_data['prabhag'] = config.get('prabhag', '')
         page_data['boothNo'] = config.get('boothNo', '')
+        page_data['boothName'] = config.get('boothName', '')
+        page_data['boothNameKannada'] = config.get('boothNameKannada', '')
         
         page_template = config.get('pageTemplate', {})
         
@@ -1985,6 +1849,8 @@ def extract_grid_vertical_enhanced(pdf_bytes, config, pdf_path=None):
             'skipFooterHeight': config.get('skipFooterHeight', 0),
             'prabhag': config.get('prabhag', '') or config.get('Prabhag', ''), # Handle case variants
             'boothNo': config.get('boothNo', '') or config.get('BoothNo', ''), # Handle case variants
+            'boothName': config.get('boothName', '') or config.get('BoothName', ''),
+            'boothNameKannada': config.get('boothNameKannada', '') or config.get('BoothNameKannada', ''),
             'performanceMode': config.get('performanceMode', 'balanced')
         }
         
