@@ -955,9 +955,9 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
         
         # We only skip if the card is completely empty or junk (e.g., no ID AND no name)
         if not has_id and not has_name:
-            should_skip = True
+            # should_skip = True # Disabled to prevent skipping any data
             skip_reason = "Empty or junk record"
-            print(f"      ⏭️  SKIPPING Page {page_num+1}, Row {row+1}, Col {col+1}: {skip_reason}")
+            print(f"      ⏭️  WOULD HAVE SKIPPED Page {page_num+1}, Row {row+1}, Col {col+1}: {skip_reason}")
 
         # Return result
         result = {
