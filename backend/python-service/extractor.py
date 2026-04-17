@@ -953,11 +953,11 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
         has_name = bool(name_val and len(name_val) >= 2)
         has_relative = bool(rel_name_val and len(rel_name_val) >= 2)
         
-        # We only skip if the card is completely empty or junk (e.g., no ID AND no name)
-        if not has_id and not has_name:
-            # should_skip = True # Disabled to prevent skipping any data
-            skip_reason = "Empty or junk record"
-            print(f"      ⏭️  WOULD HAVE SKIPPED Page {page_num+1}, Row {row+1}, Col {col+1}: {skip_reason}")
+        # User Request: Keep if Voter ID, Name, and Relative Name are present. Otherwise drop.
+        if not (has_id and has_name and has_relative):
+            should_skip = True
+            skip_reason = "Missing valid Voter ID, Name, or Relative Name"
+            print(f"      ⏭️  SKIPPING Page {page_num+1}, Row {row+1}, Col {col+1}: {skip_reason}")
 
         # Return result
         result = {
