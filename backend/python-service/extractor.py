@@ -882,8 +882,9 @@ def _extract_cell_internal(page, page_num, cell_info, config, extraction_limits,
                         if not house_val:
                             house_val = re.sub(r'^(?:HOUSE|H\.?\s*NO|HS|NO|NUM|H)\b[:\- .]*', '', curr_val, flags=re.IGNORECASE).strip()
                         if house_val:
-                            house_val = house_val.upper() # Removed translate(GLOBAL_DIGIT_TRANS)
-                            house_val = re.sub(r'[^A-Z0-9\s\/\-]', ' ', house_val)
+                            house_val = house_val.upper()
+                            # Allow commas, periods, and hashes for accurate address formatting
+                            house_val = re.sub(r'[^A-Z0-9\s\/\-\.,#]', ' ', house_val)
                             house_val = ' '.join(house_val.split()).strip()
                         additional_fields['houseNo'] = house_val
                     elif any(k in key_lower for k in ['serial', 'assembly', 'ac', 'pc', 'part']):

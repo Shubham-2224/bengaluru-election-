@@ -158,9 +158,14 @@ class TranslitHelper:
         
         # 2. NEW ANCHOR STRIPPING: Remove everything UP TO "Name" label (User requested)
         # This handles cases like "Ausband S Name Surel Armed" -> "Surel Armed"
-        name_anchor = re.search(r'\b(Name|Nam|Nav|Nan|Nom|Narn|Nim|Naro|Nare)\b', text, flags=re.IGNORECASE)
+        # Adjusted to require a colon/separator OR be at the start to avoid chopping names like "Namrata"
+        name_anchor = re.search(r'\b(Name|Nam|Nav|Nan|Nom|Narn|Nim|Naro|Nare)[\'s\s]*[:\-;\|]', text, flags=re.IGNORECASE)
         if name_anchor:
             text = text[name_anchor.end():].strip()
+        else:
+            name_anchor_start = re.search(r'^(Name|Nam|Nav|Nan|Nom|Narn|Nim|Naro|Nare)\b\s+', text, flags=re.IGNORECASE)
+            if name_anchor_start:
+                text = text[name_anchor_start.end():].strip()
 
         # 1.1 Basic OCR cleanup
         text = text.replace('||', '').replace('|', '')
@@ -197,8 +202,8 @@ class TranslitHelper:
         for wp in watermark_patterns:
             text = re.sub(wp, '', text, flags=re.IGNORECASE).strip()
         
-        # 3. Strictly keep only English letters and spaces
-        text = re.sub(r'[^a-zA-Z\s]', ' ', text)
+        # 3. Strictly keep English letters, spaces, and common name punctuation (dots, apostrophes, hyphens)
+        text = re.sub(r'[^a-zA-Z\s\.\'\-]', ' ', text)
         
         # 4. Normalize whitespace and capitalize
         text = ' '.join(word.capitalize() for word in text.split()).strip()
@@ -274,7 +279,7 @@ class TranslitHelper:
         # 3. Standardize whitespace
         result = ' '.join(active_text.split()).strip()
         
-        # 4. Final misread fixes for schools
-        result = result.replace('2.2', 'Z.P.').replace('9.P', 'Z.P.').replace('800', 'Bhor')
+        # 4. Final misread fixes for schools (Z.P. is common in rural, but avoid hardcoded names like Bhor)
+        result = result.replace('2.2', 'Z.P.').replace('9.P', 'Z.P.')
         
         return result
